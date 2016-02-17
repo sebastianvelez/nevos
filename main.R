@@ -8,12 +8,15 @@ df.c$id <- as.character(df.c$id)
 df.c$firm <- factor(substr(as.character(df.c$id),0,1))
 df.c$brand[df.c$brand == 6 & df.c$firm == 3] <- 1 # avoids having to brands labeled as '6'
 df.c$brand <- factor(as.character(df.c$brand))
-
 df.c <- df.c %>%
   group_by(city, quarter) %>%
   mutate(outshr = 1 - sum(share))
 
-df.d <- read.csv(file = 'demog.csv')
+df.v <- read.csv(file = 'v.csv')
+
+df.d <- read.csv(file = 'demogr.csv')
+df.d <- bind_cols(df.v[,1:3], df.d)
+
 
 
 # numbers that is handy to have around
@@ -39,7 +42,7 @@ outshr <- data.matrix(df.c[,56]) # share for the outside option
 
 
 
-message <- paste('The dimensions of iv are', dim(df.c[,iv])[1],dim(df.c[,iv])[2], sep = ' ')
+message <- paste('The dimensions of iv are', dim(iv)[1],dim(iv)[2], sep = ' ')
 
 print(message)
 
@@ -68,21 +71,21 @@ message <- paste('The dimensions of invA are', dim(invA)[1],dim(invA)[2], sep = 
 print(message)
 
 
-# logit results and save mean utility for initial value
+# logit results and save mean utility for initial value----
 
 y <- log(s_jt) - log(outshr)
 colnames(y) <- 'y'
 mid <- t(x1)%*%iv%*%invA%*%t(iv)
-t = solve(mid%*%x1)%*%mid%*%y
+t <- solve(mid%*%x1)%*%mid%*%y
 mvalold <- x1%*%t
 mvalold <- exp(mvalold)# fitted mean utilities to be used as initial values
 oldt2 <- matrix(,nrow = dim(theta2)[1], ncol = dim(theta2)[2]) # some empty matrix of size theta2
 
 
+# creates matrices with random draws (80: 20 individuals * 4 columns in x2) for each market (94)
 
-
-
-
+vfull <- data.matrix(df.v[,grep('v[0-9]+',colnames(df.v))])
+dfull <- data.matrix(df.d[,4:83])
 
 
 
