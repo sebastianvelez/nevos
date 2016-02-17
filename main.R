@@ -2,15 +2,19 @@
 library(dplyr)
 library(MASS)
 
+rm(list = ls())
+
 #reads data, creates factors and fixes the brand problem (2 brands got the same value "6")----
 df.c <- read.csv(file = 'cereal.csv')
 df.c$id <- as.character(df.c$id)
+df.c$city  <- as.factor(df.c$city)
+df.c$quarter  <- as.factor(df.c$quarter)
 df.c$firm <- factor(substr(as.character(df.c$id),0,1))
 df.c$brand[df.c$brand == 6 & df.c$firm == 3] <- 1 # avoids having to brands labeled as '6'
 df.c$brand <- factor(as.character(df.c$brand))
 df.c <- df.c %>%
   group_by(city, quarter) %>%
-  mutate(outshr = 1 - sum(share))
+  mutate(outshr = sum(share))
 
 df.v <- read.csv(file = 'v.csv')
 
@@ -38,7 +42,7 @@ iv <- data.matrix(df.c[,c(grep('brand[0-9]+',colnames(df.c)), grep('z[0-9]+',col
 s_jt <- data.matrix(df.c[,8]) # matrix with shares
 x1 <- data.matrix(df.c[c(9,grep('brand[0-9]+',colnames(df.c)))]) #matrix with data for the linear part
 x2 <- data.matrix(df.c[,c(9,10,11)]) # matrix for the non-linear part
-outshr <- data.matrix(df.c[,56]) # share for the outside option
+outshr <- data.matrix(df.c[,'outshr']) # share for the outside option
 
 
 
@@ -78,7 +82,8 @@ colnames(y) <- 'y'
 mid <- t(x1)%*%iv%*%invA%*%t(iv)
 t <- solve(mid%*%x1)%*%mid%*%y
 mvalold <- x1%*%t
-mvalold <- exp(mvalold)# fitted mean utilities to be used as initial values
+mvalold <- exp(mvalold) # fitted mean utilities to be used as initial values
+colnames(mvalold) <- 'mvalold'
 oldt2 <- matrix(,nrow = dim(theta2)[1], ncol = dim(theta2)[2]) # some empty matrix of size theta2
 
 
@@ -88,9 +93,44 @@ vfull <- data.matrix(df.v[,grep('v[0-9]+',colnames(df.v))])
 dfull <- data.matrix(df.d[,4:83])
 
 
+# This function computes the non-linear part of the utility (mu_ijt in the %%Guide)----
+mufunc <- (x2,theta2w){
+  n <- dim(x2)[1]
+  k <- dim(x2)[2]
+  j <- dim(theta2w)[2]-1
+  mu <- matrix(,nrow = n, ncol = ns)
+  
+  for (i in 1:ns){
+    
+  }
+  
+  
+  
+}
+
+for i = 1:ns
+v_i = vfull(:,i:ns:k*ns);
+d_i = dfull(:,i:ns:j*ns);
+mu(:,i) = (x2.*v_i*theta2w(:,1))+x2.*(d_i*theta2w(:,2:j+1)')*ones(k,1);
+                                      end
+                                      f = mu;
+                                      
 
 
+# This function computes the mean utility level
+meanval <- function(theta2){
+  
+}
 
+
+  
+
+# This function computes the GMM objective function and its gradient----
+gmm.obj.grad <- function(
+  
+  
+  
+)
 
 
 
