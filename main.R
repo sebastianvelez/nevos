@@ -101,9 +101,10 @@ mufunc <- (x2,theta2w){
   mu <- matrix(,nrow = n, ncol = ns)
   
   for (i in 1:ns){
-    v_i <- vfull[,c(i,i+20,i+40, i+60)]
-    d_i <- dfull(:,c(i,i+20,i+40, i+60))
-    mu[,i] <- x2*(v_i%*%theta2[,1]) + x2*(d_i)
+    v_i <- vfull[,c(i,i+ns,i+2*ns, i+3*ns)]
+    d_i <- dfull[,c(i,i+ns,i+2*ns, i+3*ns)]
+    mu[,i] <- x2*(v_i%*%theta2w[,1]) 
+    + x2*(d_i)
   }
   
   
