@@ -6,6 +6,10 @@ rm(list = ls())
 
 #reads data, creates factors and fixes the brand problem (2 brands got the same value "6")----
 df.c <- read.csv(file = 'cereal.csv')
+df.v <- read.csv(file = 'v.csv')
+
+df.d <- read.csv(file = 'demogr.csv')
+
 df.c$id <- as.character(df.c$id)
 df.c$city  <- as.factor(df.c$city)
 df.c$quarter  <- as.factor(df.c$quarter)
@@ -16,10 +20,7 @@ df.c <- df.c %>%
   group_by(city, quarter) %>%
   mutate(outshr = sum(share))
 
-df.v <- read.csv(file = 'v.csv')
 
-df.d <- read.csv(file = 'demogr.csv')
-df.d <- bind_cols(df.v[,1:3], df.d)
 
 
 
@@ -39,9 +40,15 @@ for(t in unique(df.c$brand)) {
 
 # needed matrices
 iv <- data.matrix(df.c[,c(grep('brand[0-9]+',colnames(df.c)), grep('z[0-9]+',colnames(df.c)))])# matrix of instruments
-s_jt <- data.matrix(df.c[,8]) # matrix with shares
-x1 <- data.matrix(df.c[c(9,grep('brand[0-9]+',colnames(df.c)))]) #matrix with data for the linear part
-x2 <- data.matrix(df.c[,c(9,10,11)]) # matrix for the non-linear part
+
+s_jt <- data.matrix(df.c[,'share']) # matrix with shares
+
+x1 <- data.matrix(df.c[c(10,grep('brand[0-9]+',colnames(df.c)))]) #matrix with data for the linear part
+
+x2 <- df.c[,c(9,10,11,12)] # matrix for the non-linear part
+x2 <- data.matrix(x2)
+
+
 outshr <- data.matrix(df.c[,'outshr']) # share for the outside option
 
 
@@ -53,10 +60,9 @@ print(message)
 
 
 # starting values----
-theta2w <- matrix(c(0.3302, 5.4819,   0,      0.2037, 0,
-                               2.4526, 15.8935, -1.2000, 0,      2.6342,
-                               0.0163, -0.2506,  0,      0.0511, 0,
-                               0.2441, 1.2650,   0,     -0.8091, 0),nrow = 4, ncol = 5)
+theta2w <- matrix(c(0.2581,2.4317,0.0075,0.1238,3.5819,21.6313,-0.2216,1.4420,0,
+                    -1.0233,0,0,0.2847,0,0.0536,-0.9902,0,4.5870,0,0),nrow = 4, ncol = 5)
+colnames(theta2w) <- c('sigma', 'pi1','pi2','pi3','pi4')
 
 # this are the parameters to be estimated. 
 #7 are set to zero by assumption the 13 others are: 4 characteristics and 9 interactions.
@@ -69,7 +75,7 @@ print(message)
 
 
 # creates waiting matrix----
-invA = solve(t(iv) %*% iv)
+invA = ginv(t(iv) %*% iv)
 message <- paste('The dimensions of invA are', dim(invA)[1],dim(invA)[2], sep = ' ')
 
 print(message)
@@ -89,49 +95,25 @@ oldt2 <- matrix(,nrow = dim(theta2)[1], ncol = dim(theta2)[2]) # some empty matr
 
 # creates matrices with random draws (80: 20 individuals * 4 columns in x2) for each market (94)
 
-vfull <- data.matrix(df.v[,grep('v[0-9]+',colnames(df.v))])
-dfull <- data.matrix(df.d[,4:83])
+vfull <- data.matrix(df.c[,grep('v[0-9]+',colnames(df.c))])
+dfull <- data.matrix(df.c[,grep('inc|child|age',colnames(df.c))])
 
 
-# This function computes the non-linear part of the utility (mu_ijt in the %%Guide)----
+# This function computes the non-linear part of the utility (mu_ijt in the Guide)----
 mufunc <- (x2,theta2w){
-  n <- dim(x2)[1]
+  obs <- dim(x2)[1]
   k <- dim(x2)[2]
   j <- dim(theta2w)[2]-1
-  mu <- matrix(,nrow = n, ncol = ns)
+  mu <- matrix(,nrow = obs, ncol = ns)
   
   for (i in 1:ns){
-    v_i <- vfull[,c(i,i+ns,i+2*ns, i+3*ns)]
-    d_i <- dfull[,c(i,i+ns,i+2*ns, i+3*ns)]
-    mu[,i] <- x2*(v_i%*%theta2w[,1]) 
-    + x2*(d_i)
+    vi <- vfull[,c(i,i+ns,i+2*ns, i+3*ns)]
+    di <- dfull[,c(i,i+ns,i+2*ns, i+3*ns)]
+    mu[,i] <- (x2*vi)%*%as.matrix(theta2w[,1]) + (x2*(di %*% t(theta2w[,2:(j+1)]))) %*% matrix(rep(1,k),nrow = k,1)
   }
   
   
 }
-
-mu(:,i) = (x2.*v_i*theta2w(:,1))+x2.*(d_i*theta2w(:,2:j+1)')*ones(k,1);
-                                      end
-                                      f = mu;
-                                      
-
-
-# This function computes the mean utility level
-meanval <- function(theta2){
-  
-}
-
-
-  
-
-# This function computes the GMM objective function and its gradient----
-gmm.obj.grad <- function(
-  
-  
-  
-)
-
-
 
 
 
