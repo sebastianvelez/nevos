@@ -122,9 +122,17 @@ mufunc <- function(x2, theta2w){
 }
 
 # This function computes individual market shares---
-indsh <- function(expmval, expmu){
-  eg
+ind.sh <- function(expmval, expmu){
+  eg <- expmu * matrix(rep(expmval,ns),nrow = obs, ncol = ns )
+  temp <- apply(eg, 2, cumsum) 
+  sum1 <- temp[seq(nbrn,obs,nbrn),]
+  sum1[2:nmkt,] <- diff(sum1)
   
+  denom1 <- 1/(1+sum1)
+  cdid <- sort(rep(1:nmkt,nbrn))
+
+  denom <- denom1[cdid,]
+  f <- eg*denom
 }
 
 
