@@ -37,6 +37,7 @@ ns <- 20     # number of simulated "indviduals" per market %
 nmkt <- 94    # number of markets = (# of cities)*(# of quarters)  %
 nbrn <- 24    # number of brands per market. if the numebr differs by
 n_inst <-20    # number of instruments for price
+obs <- 2256 # number of observations
 
 
 # creates matrices needed----
@@ -121,6 +122,7 @@ mufunc <- function(x2, theta2w){
   return(mu)
 }
 
+
 # This function computes individual market shares---
 ind.sh <- function(expmval, expmu){
   eg <- expmu * matrix(rep(expmval,ns),nrow = obs, ncol = ns )
@@ -136,9 +138,9 @@ ind.sh <- function(expmval, expmu){
 }
 
 
-# This function computes predicted market shares----
-mkths <- function(mval, expmu){
-  share <- sum(t(indsh(mval, expmu)))/ns
+# This function computes average market shares----
+mktsh <- function(expmval, expmu){
+  share <- matrix(rowMeans(ind.sh(expmval, expmu)),obs,1)
   return(share)
 }
 
@@ -163,10 +165,26 @@ meanval <- function(theta2){
   
   while(norm > tol*10^(flag*floor(i/50) & avgnorm > 1e-3*tol*10^(flag*floor(i/50)))){
     
+    mval <- mvalold*s_jt/mktsh(mvalold,expmu)
+    
+    t <- abs(mval - mvalold)
+      norm <- max(t)
+      avgnorm <- mean(t)
+      mvalold <- mval
+    i <- i+1
+  }
+  print(paste('# of iteration for delta convergence', as.character(i) ,sep = ' '))
+  
+  if (flag==1 & max(is.na(mval)) < 1) {
+    mvalold <<- mval
+    oldt2 <<- theta2
   }
   
-  
+  return(log(mval))
 }
+
+
+
 
 
 
