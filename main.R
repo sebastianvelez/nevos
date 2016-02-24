@@ -27,10 +27,7 @@ df.c$brand[df.c$brand == 6 & df.c$firm == 3] <- 1 # avoids having to brands labe
 df.c$brand <- factor(as.character(df.c$brand))
 df.c <- df.c %>%
   group_by(city, quarter)%>%
-  mutate(outshr = sum(share))
-
-
-
+  mutate(outshr = 1 - sum(share))
 
 
 # numbers that is handy to have around
@@ -41,22 +38,17 @@ n_inst <-20    # number of instruments for price
 obs <- 2256 # number of observations
 
 
-# creates matrices needed----
-
-# creates dummies for brand----
+# creates objects needed----
+# creates dummies for brand
 for(t in unique(df.c$brand)) {
   df.c[paste('brand',t,sep='')] <- ifelse(df.c$brand==t,1,0)
 }
 
 # needed matrices
-iv <- data.matrix(df.c[,c(grep('brand[0-9]+',colnames(df.c)), grep('z[0-9]+',colnames(df.c)))])# matrix of instruments
-
+iv <- data.matrix(df.c[,c(grep('z[0-9]+',colnames(df.c)), grep('brand[0-9]+',colnames(df.c)))])# matrix of instruments
 s_jt <- data.matrix(df.c[,'share']) # matrix with shares
-
 x1 <- data.matrix(df.c[c(10,grep('brand[0-9]+',colnames(df.c)))]) #matrix with data for the linear part
-
 x2 <- data.matrix(df.c[,c(9,10,11,12)]) # matrix for the non-linear part
-
 outshr <- data.matrix(df.c[,'outshr']) # share for the outside option
 
 
@@ -68,16 +60,18 @@ print(message)
 
 
 # starting values----
-theta2w <- matrix(c(0.2581,2.4317,0.0075,0.1238,3.5819,21.6313,-0.2216,1.4420,0,
-                    -1.0233,0,0,0.2847,0,0.0536,-0.9902,0,4.5870,0,0),nrow = 4, ncol = 5)
-colnames(theta2w) <- c('sigmas', 'pi1','pi2','pi3','pi4')
+theta2w <- matrix(c(0.3302,2.4526,0.0163,0.2441,5.4819, 15.8935,-0.2506,1.2650,
+                    0,-1.2000,0,0,0.2037,0, 0.0511,-0.8091,0,2.6342,0,0),nrow = 4, ncol = 5)
+colnames(theta2w) <- c('sigmas', 'inc','incsq','age','child')
+
+theta2 <- matrix(theta2w[!theta2w ==0],nrow = 13, 1) # gets the non-zero elements of theta2w
+
 
 # this are the parameters to be estimated. 
 #7 are set to zero by assumption the 13 others are: 4 characteristics and 9 interactions.
 
 
 message <- paste('The dimensions of theta2w are', dim(theta2w)[1],dim(theta2w)[2], sep = ' ')
-
 print(message)
 
 
@@ -94,11 +88,11 @@ print(message)
 y <- log(s_jt) - log(outshr)
 colnames(y) <- 'y'
 mid <- t(x1)%*%iv%*%invA%*%t(iv)
-t <- solve(mid%*%x1)%*%mid%*%y
+t <- solve(mid%*%x1)%*%mid%*%y # parameters of the simple logit
 mvalold <- x1%*%t
 mvalold <- exp(mvalold) # fitted mean utilities to be used as initial values
 colnames(mvalold) <- 'mvalold'
-oldt2 <- matrix(rep(0,20),nrow = dim(theta2w)[1], ncol = dim(theta2w)[2]) # some empty matrix of size theta2
+oldt2 <- matrix(rep(0,13),nrow = dim(theta2)[1], ncol = dim(theta2)[2]) # some empty matrix of size theta2
 
 
 # creates matrices with random draws (80: 20 individuals * 4 columns in x2) for each market (94)
@@ -212,6 +206,7 @@ gmmobj <- function(theta2){
   print(paste('GMM objective: ', as.character(f)))
 }
 
-optim(theta2w, gmmobj)
+a <- optim(theta2, gmmobj)
+
 
 
