@@ -1,6 +1,7 @@
 # Attempt to replicate Nevo's results
 library(dplyr)
 library(MASS)
+library(numDeriv)
 
 rm(list = ls())
 
@@ -185,7 +186,32 @@ meanval <- function(theta2){
 
 
 
+# This function computes the GMM objective function, f is the objective and df is the gradient
 
+gmmobj <- function(theta2){
+  delta <- meanval(theta2)
+  # the folloowing deals with cases were the min algorithm drifts into regions
+  # where the objective is not defined
+  if(max(is.na(delta)) == 1){
+    f = 1e10
+  } else{
+    temp1 <- t(x1)%*%iv
+    temp2 <- t(delta)%*%iv
+    theta1 <- ginv(temp1%*%invA%*%t(temp1)) %*% temp1 %*% invA%*% t(temp2)
+    rm(temp1,temp2)
+    gmmresid <- delta - x1%*%theta1
+    temp1 <- t(gmmresid)%*%iv
+    f1 <- temp1%*%invA%*%t(temp1)
+    f <- f1
+    
+#     temp <- jacobian(mvalold,theta2)
+#     df <- 2*temp%*%invA%*%t(iv)gmmresid
+  }
+#   output <- list(f,df)
+#   return(output)
+  print(paste('GMM objective: ', as.character(f)))
+}
 
+optim(theta2w, gmmobj)
 
 
