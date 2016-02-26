@@ -196,17 +196,24 @@ gmmobj <- function(theta2){
     gmmresid <- delta - x1%*%theta1
     temp1 <- t(gmmresid)%*%iv
     f1 <- temp1%*%invA%*%t(temp1)
-    f <- f1
+    f <- f1[1,1]
     
 #     temp <- jacobian(mvalold,theta2)
 #     df <- 2*temp%*%invA%*%t(iv)gmmresid
   }
 #   output <- list(f,df)
-#   return(output)
+  return(f)
   print(paste('GMM objective: ', as.character(f)))
 }
 
-a <- optim(theta2, gmmobj)
 
+theta2 <- as.vector(theta2)
 
+a <- optimx(
+  par = theta2,
+  fn = gmmobj,
+  control = list(all.methods=TRUE, save.failures=TRUE, trace=6)
+)
+
+a <- optim(par = theta2, fn = gmmobj, control = list(trace=6))
 
