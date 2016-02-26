@@ -76,7 +76,7 @@ print(message)
 
 
 
-# creates waiting matrix----
+# creates weighting matrix----
 invA = ginv(t(iv) %*% iv)
 message <- paste('The dimensions of invA are', dim(invA)[1],dim(invA)[2], sep = ' ')
 
@@ -158,7 +158,8 @@ meanval <- function(theta2){
 
   i <- 0
   
-  while(norm > tol*10^(flag*floor(i/50) & avgnorm > 1e-3*tol*10^(flag*floor(i/50)))){
+  # next step is the actual contraction that iterates until finding a delta^(h+1) = delta^h
+  while(norm > tol*10^(flag*floor(i/50)) & avgnorm > 1e-3*tol*10^(flag*floor(i/50))){
     
     mval <- mvalold*s_jt/mktsh(mvalold,expmu)
     
@@ -171,16 +172,15 @@ meanval <- function(theta2){
   print(paste('# of iteration for delta convergence', as.character(i) ,sep = ' '))
   
   if (flag==1 & max(is.na(mval)) < 1) {
-    mvalold <<- mval
-    oldt2 <<- theta2
+    mvalold <- mval
+    oldt2 <- theta2
   }
-  
-  return(log(mval))
+   return(log(mval))
 }
 
 
 
-# This function computes the GMM objective function, f is the objective and df is the gradient
+# This function computes the GMM objective function, f is the objective and df is the gradient----
 
 gmmobj <- function(theta2){
   delta <- meanval(theta2)
