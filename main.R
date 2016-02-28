@@ -62,9 +62,15 @@ print(message)
 # starting values----
 theta2w <- matrix(c(0.3302,2.4526,0.0163,0.2441,5.4819, 15.8935,-0.2506,1.2650,
                     0,-1.2000,0,0,0.2037,0, 0.0511,-0.8091,0,2.6342,0,0),nrow = 4, ncol = 5)
+
+# nonzero.ind <- which(!theta2w==0, arr.ind = T)
+# theta.row <- nonzero.ind[,1]
+# theta.col <- nonzero.ind[,2]
+here <- which(!theta2w==0)
+  
 colnames(theta2w) <- c('sigmas', 'inc','incsq','age','child')
 
-theta2 <- matrix(theta2w[!theta2w ==0],nrow = 13, 1) # gets the non-zero elements of theta2w
+theta2 <- as.vector(theta2w[!theta2w==0]) # gets the non-zero elements of theta2w
 
 
 # this are the parameters to be estimated. 
@@ -92,7 +98,6 @@ t <- solve(mid%*%x1)%*%mid%*%y # parameters of the simple logit
 mvalold <- x1%*%t
 mvalold <- exp(mvalold) # fitted mean utilities to be used as initial values
 colnames(mvalold) <- 'mvalold'
-oldt2 <- matrix(rep(0,13),nrow = dim(theta2)[1], ncol = dim(theta2)[2]) # some empty matrix of size theta2
 
 
 # creates matrices with random draws (80: 20 individuals * 4 columns in x2) for each market (94)
@@ -150,8 +155,11 @@ meanval <- function(theta2){
     tol <- 1e-6
     flag <- 1
   }
+  
+  theta3 <- matrix(0,nrow = 4, ncol = 5)
+  theta3[here] <- theta2
 
-  expmu <- exp(mufunc(x2,theta2w))
+  expmu <- exp(mufunc(x2,theta3))
   norm <- 1
   avgnorm <- 1
 
@@ -207,6 +215,8 @@ gmmobj <- function(theta2){
 }
 
 
+
+oldt2 <- c(rep(0,13)) # some empty matrix of size theta2
 theta2 <- as.vector(theta2)
 
 a <- optimx(
