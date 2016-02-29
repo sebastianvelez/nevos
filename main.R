@@ -1,23 +1,31 @@
-# Attempt to replicate Nevo's results
+# This script replicates the results in Nevo's Practicioners guide
+# the original data was available at http://www.rasmusen.org/zg604/lectures/blp/frontpage.htm
+# as of Feb 29 2016 or in the repository from where this file was downloaded
+
+
 library(dplyr)
 library(MASS)
-library(numDeriv)
 
-rm(list = ls())
 
-#reads data, creates factors and fixes the brand problem (2 brands got the same value "6")----
-df.c <- read.csv(file = 'cereal.csv')
-df.d <- read.csv(file = 'demogr.csv')
-index.dv <- read.csv(file = 'index.vd.csv')
-df.v <- read.csv(file = 'v.csv')
+rm(list = ls()) # makes sure the workspace is clean and tidy
 
+
+# PRE-ESTIMATION----
+ # this section does some housekeeping and tidying up to get all the things needed
+
+# WRANGLING DATA
+#reads data, creates factors and fixes the brand problem (2 brands got the same value "6")
+df.c <- read.csv(file = 'cereal.csv') # price, shares, identifiers, sugar, mushy, and instruments.
+df.d <- read.csv(file = 'demogr.csv') # income, incomesq, age, child, for 20 individuals drawn from CPS
+index.dv <- read.csv(file = 'index.vd.csv') # identifier for demografics and individual shocks
+df.v <- read.csv(file = 'v.csv') # unobserved individual shocks
+
+# adds identifier column to observed and unobserved individual characteristics (demographics and nus)
 df.v <- cbind(index.dv,df.v)
-
 vd <- bind_cols(df.d,df.v)
-
 df.c <- inner_join(df.c,vd,by=c("city", "quarter", "year"))
 
-rm(df.d,df.v,vd,index.dv)
+rm(df.d,df.v,vd,index.dv) # collects garbage
 
 df.c$id <- as.character(df.c$id)
 df.c$city  <- as.factor(df.c$city)
@@ -28,17 +36,16 @@ df.c$brand <- factor(as.character(df.c$brand))
 df.c <- df.c %>%
   group_by(city, quarter)%>%
   mutate(outshr = 1 - sum(share))
-
+cdid <- sort(rep(1:nmkt,nbrn))
 
 # numbers that is handy to have around
 ns <- 20     # number of simulated "indviduals" per market %
 nmkt <- 94    # number of markets = (# of cities)*(# of quarters)  %
 nbrn <- 24    # number of brands per market. if the numebr differs by
-n_inst <-20    # number of instruments for price
+n.inst <-20    # number of instruments for price
 obs <- 2256 # number of observations
 
 
-# creates objects needed----
 # creates dummies for brand
 for(t in unique(df.c$brand)) {
   df.c[paste('brand',t,sep='')] <- ifelse(df.c$brand==t,1,0)
@@ -51,71 +58,62 @@ x1 <- data.matrix(df.c[c(10,grep('brand[0-9]+',colnames(df.c)))]) #matrix with d
 x2 <- data.matrix(df.c[,c(9,10,11,12)]) # matrix for the non-linear part
 outshr <- data.matrix(df.c[,'outshr']) # share for the outside option
 
+print(paste('The dimensions of iv are', dim(iv)[1],dim(iv)[2], sep = ' '))
 
 
-message <- paste('The dimensions of iv are', dim(iv)[1],dim(iv)[2], sep = ' ')
+# STARTING VALUES
 
-print(message)
+# the following matrix contains the starting values of the parameters. 
+# 7 are set to zero by assumption the 13 others are: 4 characteristics and 9 interactions.
 
-
-
-# starting values----
 theta2w <- matrix(c(0.3302,2.4526,0.0163,0.2441,5.4819, 15.8935,-0.2506,1.2650,
                     0,-1.2000,0,0,0.2037,0, 0.0511,-0.8091,0,2.6342,0,0),nrow = 4, ncol = 5)
-
-# nonzero.ind <- which(!theta2w==0, arr.ind = T)
-# theta.row <- nonzero.ind[,1]
-# theta.col <- nonzero.ind[,2]
-here <- which(!theta2w==0)
-  
 colnames(theta2w) <- c('sigmas', 'inc','incsq','age','child')
+
+here <- which(!theta2w==0) # indices of parameters that will be estimated. 
 
 theta2 <- as.vector(theta2w[!theta2w==0]) # gets the non-zero elements of theta2w
 
-
-# this are the parameters to be estimated. 
-#7 are set to zero by assumption the 13 others are: 4 characteristics and 9 interactions.
+oldt2 <- c(rep(0,13)) # initializes an empty matrix to store old results to be compared with newer iterations
 
 
-message <- paste('The dimensions of theta2w are', dim(theta2w)[1],dim(theta2w)[2], sep = ' ')
-print(message)
+print(paste('The dimensions of theta2w are', dim(theta2w)[1],dim(theta2w)[2], sep = ' '))
 
 
-
-# creates weighting matrix----
+# WEIGHTING MATRIX
 invA = ginv(t(iv) %*% iv)
-message <- paste('The dimensions of invA are', dim(invA)[1],dim(invA)[2], sep = ' ')
-
-print(message)
+print(paste('The dimensions of invA are', dim(invA)[1],dim(invA)[2], sep = ' '))
 
 
-# logit results and save mean utility for initial value----
-
+# LOGIT
 y <- log(s_jt) - log(outshr)
 colnames(y) <- 'y'
 mid <- t(x1)%*%iv%*%invA%*%t(iv)
 t <- solve(mid%*%x1)%*%mid%*%y # parameters of the simple logit
 mvalold <- x1%*%t
-mvalold <- exp(mvalold) # fitted mean utilities to be used as initial values
+mvalold <- exp(mvalold) # fitted mean utilities to be used as initial values for the deltas
 colnames(mvalold) <- 'mvalold'
 
 
+# INDIVIDUAL CHARACTERISTICS
 # creates matrices with random draws (80: 20 individuals * 4 columns in x2) for each market (94)
-
 vfull <- data.matrix(df.c[,grep('v[0-9]+',colnames(df.c))])
 dfull <- data.matrix(df.c[,paste('d',1:80, sep = '')])
 
 
 # This function computes the non-linear part of the utility (mu_ijt in the Guide)----
 mufunc <- function(x2, theta2w){
+  # takes the observed good's characteristics, the individual's observed (demo) and unoobserved
+  # characteristics (v) to compute the individual utility (mu) te obtain later the individual
+  # 'shares'
   obs <- dim(x2)[1]
   k <- dim(x2)[2]
   j <- dim(theta2w)[2]-1
-  mu <- matrix(,nrow = obs, ncol = ns)
+  mu <- matrix(,nrow = obs, ncol = ns) # empty matrix to store results of the for-loop
   
   for (i in 1:ns){
-    vi <- vfull[,c(i,i+ns,i+2*ns, i+3*ns)]
-    di <- dfull[,c(i,i+ns,i+2*ns, i+3*ns)]
+    vi <- vfull[,c(i,i+ns,i+2*ns, i+3*ns)] # first 20 colums are age for 20 individuals, next 20
+    di <- dfull[,c(i,i+ns,i+2*ns, i+3*ns)] # are income, next 20 are income sq ...
     mu[,i] <- (x2*vi)%*%as.matrix(theta2w[,1]) + (x2*(di %*% t(theta2w[,2:(j+1)]))) %*% matrix(rep(1,k),nrow = k,1)
   }
   
@@ -123,7 +121,8 @@ mufunc <- function(x2, theta2w){
 }
 
 
-# This function computes individual market shares---
+
+# This function computes individual market shares----
 ind.sh <- function(expmval, expmu){
   eg <- expmu * matrix(rep(expmval,ns),nrow = obs, ncol = ns )
   temp <- apply(eg, 2, cumsum) 
@@ -138,11 +137,13 @@ ind.sh <- function(expmval, expmu){
 }
 
 
+
 # This function computes average market shares----
 mktsh <- function(expmval, expmu){
   share <- matrix(rowMeans(ind.sh(expmval, expmu)),obs,1)
   return(share)
 }
+
 
 
 # This function computes the mean value (this is the contraction on delta)----
@@ -156,6 +157,7 @@ meanval <- function(theta2){
     flag <- 1
   }
   
+  # next 2 lines turn the vector theta2 into a 4x5 matrix like theta2w
   theta3 <- matrix(0,nrow = 4, ncol = 5)
   theta3[here] <- theta2
 
@@ -188,6 +190,7 @@ meanval <- function(theta2){
 
 
 
+
 # This function computes the GMM objective function, f is the objective and df is the gradient----
 
 gmmobj <- function(theta2){
@@ -201,29 +204,62 @@ gmmobj <- function(theta2){
     temp2 <- t(delta)%*%iv
     theta1 <- ginv(temp1%*%invA%*%t(temp1)) %*% temp1 %*% invA%*% t(temp2)
     rm(temp1,temp2)
-    gmmresid <- delta - x1%*%theta1
+    gmmresid <<- delta - x1%*%theta1 # gmm residual are needed for var.cov()
     temp1 <- t(gmmresid)%*%iv
     f1 <- temp1%*%invA%*%t(temp1)
     f <- f1[1,1]
-    
-#     temp <- jacobian(mvalold,theta2)
-#     df <- 2*temp%*%invA%*%t(iv)gmmresid
   }
-#   output <- list(f,df)
   return(f)
   print(paste('GMM objective: ', as.character(f)))
+  
+}
+
+# ESTIMATION ----
+
+# theta2 (the nonlinear parameters as table 1 in the Guide)
+ptm <- proc.time()
+a <- optim(par = theta2, fn = gmmobj, control = list(trace=1))
+(proc.time()-ptm)/60
+
+
+
+# POST-ESTIMATION ----
+
+# This function estimates the Jacobian 
+# (I should try and remove the for-loop if possible, it maybe faster if vecotrized)
+
+jacob <- function(mval,theta2){
+  
+  theta3 <- matrix(0,nrow = 4, ncol = 5)
+  theta3[here] <- theta2
+  
+  expmu <- exp(mufunc(x2,theta3))
+  shares <- ind.sh(expmval,expmu)
+  n <- dim(x2)[1]
+  k <- dim(x2)[2]
+  j <- dim(theta3)[2] - 1
+  f1 <- matrix(,nrow = 2256, k*(j+1))
+  
+  # computes (partial share)/(partial sigma)
+  
+  for(i in 1:k){
+    
+    xv <- (as.matrix(x2[,i]) %*% matrix(rep(1,20),nrow = 1, ncol = 20)) * df.v[cdid, ns*(i-1)+1:ns*i]
+    temp <- cumsum(xv*shares)
+    sum1 <- temp[seq(nbrn,obs,nbrn),]
+    sum1[2:nmkt,] <- apply(sum1, 2, diff)
+    f1[,i] <- t(mean(t(shares*(xv-sum1[cdid,]))))
+    
+  }
 }
 
 
 
-oldt2 <- c(rep(0,13)) # some empty matrix of size theta2
-theta2 <- as.vector(theta2)
 
-a <- optimx(
-  par = theta2,
-  fn = gmmobj,
-  control = list(all.methods=TRUE, save.failures=TRUE, trace=6)
-)
-
-a <- optim(par = theta2, fn = gmmobj, control = list(trace=6))
-
+# This function creates the matrix of variances covariances of the estimates
+var.cov <- function(theta2){
+  obs <- length(s_jt)
+  nz <- nbrn+n.inst
+  temp <- jacob(mvalold,theta2)
+  a <- 
+}
