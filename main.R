@@ -18,14 +18,13 @@ rm(list = ls()) # makes sure the workspace is clean and tidy
 df.c <- read.csv(file = 'cereal.csv') # price, shares, identifiers, sugar, mushy, and instruments.
 df.d <- read.csv(file = 'demogr.csv') # income, incomesq, age, child, for 20 individuals drawn from CPS
 index.dv <- read.csv(file = 'index.vd.csv') # identifier for demografics and individual shocks
-df.v <- read.csv(file = 'v.csv') # unobserved individual shocks
+v <- read.csv(file = 'v.csv') # unobserved individual shocks
 
 # adds identifier column to observed and unobserved individual characteristics (demographics and nus)
-df.v <- cbind(index.dv,df.v)
+df.v <- cbind(index.dv,v)
 vd <- bind_cols(df.d,df.v)
 df.c <- inner_join(df.c,vd,by=c("city", "quarter", "year"))
 
-rm(df.d,df.v,vd,index.dv) # collects garbage
 
 df.c$id <- as.character(df.c$id)
 df.c$city  <- as.factor(df.c$city)
@@ -36,7 +35,8 @@ df.c$brand <- factor(as.character(df.c$brand))
 df.c <- df.c %>%
   group_by(city, quarter)%>%
   mutate(outshr = 1 - sum(share))
-cdid <- sort(rep(1:nmkt,nbrn))
+
+
 
 # numbers that is handy to have around
 ns <- 20     # number of simulated "indviduals" per market %
@@ -45,6 +45,9 @@ nbrn <- 24    # number of brands per market. if the numebr differs by
 n.inst <-20    # number of instruments for price
 obs <- 2256 # number of observations
 
+cdid <- sort(rep(1:nmkt,nbrn))
+
+cdindex <- seq(nbrn,obs,nbrn)
 
 # creates dummies for brand
 for(t in unique(df.c$brand)) {
@@ -126,7 +129,7 @@ mufunc <- function(x2, theta2w){
 ind.sh <- function(expmval, expmu){
   eg <- expmu * matrix(rep(expmval,ns),nrow = obs, ncol = ns )
   temp <- apply(eg, 2, cumsum) 
-  sum1 <- temp[seq(nbrn,obs,nbrn),]
+  sum1 <- temp[cdindex,]
   sum1[2:nmkt,] <- diff(sum1)
   
   denom1 <- 1/(1+sum1)
@@ -202,7 +205,7 @@ gmmobj <- function(theta2){
   } else{
     temp1 <- t(x1)%*%iv
     temp2 <- t(delta)%*%iv
-    theta1 <- ginv(temp1%*%invA%*%t(temp1)) %*% temp1 %*% invA%*% t(temp2)
+    theta1 <<- ginv(temp1%*%invA%*%t(temp1)) %*% temp1 %*% invA%*% t(temp2) # alpha and brand dummies
     rm(temp1,temp2)
     gmmresid <<- delta - x1%*%theta1 # gmm residual are needed for var.cov()
     temp1 <- t(gmmresid)%*%iv
@@ -234,24 +237,48 @@ jacob <- function(mval,theta2){
   theta3[here] <- theta2
   
   expmu <- exp(mufunc(x2,theta3))
-  shares <- ind.sh(expmval,expmu)
-  n <- dim(x2)[1]
-  k <- dim(x2)[2]
-  j <- dim(theta3)[2] - 1
-  f1 <- matrix(,nrow = 2256, k*(j+1))
+  shares <- ind.sh(mval,expmu)
+  K <- dim(x2)[2]
+  J <- dim(theta3)[2] - 1
+  f1 <- matrix(,nrow = 2256, K*(J+1))
   
-  # computes (partial share)/(partial sigma)
-  
-  for(i in 1:k){
-    
-    xv <- (as.matrix(x2[,i]) %*% matrix(rep(1,20),nrow = 1, ncol = 20)) * df.v[cdid, ns*(i-1)+1:ns*i]
+# this part computes (partial share)/ (partial sigma)
+  for (i in 1:K){
+    xv <- matrix(rep(x2[,i],20),nrow = 2256, ncol = 20) * v[cdid, (ns*(i-1)+1):(ns*i)]
     temp <- cumsum(xv*shares)
-    sum1 <- temp[seq(nbrn,obs,nbrn),]
-    sum1[2:nmkt,] <- apply(sum1, 2, diff)
-    f1[,i] <- t(mean(t(shares*(xv-sum1[cdid,]))))
-    
+    sum1 <- temp[cdindex, ]
+    sum1[2:94,] <- apply(sum1, 2, diff)
+    f1[,i] <- t(apply(t(shares*(xv-sum1[cdid,])), 2, mean))
   }
+  
+# this part computes (partial share) / (partial pi). Comment out if no demographics
+  for (j in 1:J){
+    d <- df.d[cdid, ((j-1)+1):(ns*j)]
+    temp1 <- matrix(, nrow = 2256, K)
+    for (i in 1:K){
+      xd <- matrix(rep(x2[,i],20),nrow = 2256, ncol = ns) * d
+      temp <- cumsum(xd*shares)
+      sum1 <- temp[cdindex, ]
+      sum1[2:94,] <- apply(sum1, 2, diff)
+      temp1[, i] <- t(apply(t(shares*(xd-sum1[cdid,])),2,mean))
+      }
+  
+  f1[, (K*j+1):(K*(j+1))] <- temp1
+  }
+  f <- matrix(,2256,13)
+  n <- 1
+# this part computes (partial delta) / (partial theta2)
+  for (i in 1:94) {
+    temp <- shares[n:cdindex[i],]
+    H1 <- temp %*% t(temp)
+    H <- (diag(apply(t(temp), 2, sum))-H1)/ns
+    f[n:cdindex[i],] <- -ginv(H) %*% f1[n:cdindex[i],c(1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18)]
+    n <- cdindex[i] + 1
+  }
+  return(f)
 }
+
+
 
 
 
