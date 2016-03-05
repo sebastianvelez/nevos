@@ -280,13 +280,40 @@ jacob <- function(mval,theta2){
 
 
 
-
-
-
 # This function creates the matrix of variances covariances of the estimates
 var.cov <- function(theta2){
   obs <- length(s_jt)
   nz <- nbrn+n.inst
   temp <- jacob(mvalold,theta2)
-  a <- 
+  a <- t(cbind(x1,temp)) %*% iv
+  ivres <- iv * (gmmresid %*% matrix(rep(1,44),nrow = 1, ncol = 44))
+  b <- t(ivres) %*% ivres
+  
+  f = ginv(a %*% invA %*% t(a))%*%a%*%invA%*%b%*%invA%*%t(a)%*%ginv(a %*% invA %*% t(a))
+  
 }
+
+
+
+# obtaining the SE for te nonlinear parameters
+vcov <- var.cov(a$par)
+se <- sqrt(diag(vcov))
+
+theta2w.hat <- matrix(0,nrow = 4, ncol = 5)
+theta2w.hat[here] <- as.vector(a$par)
+se2w <- se[26:38]
+
+se2w.hat<- matrix(0,nrow = 4,ncol = 5)
+se2w.hat[here] <- se2w
+
+
+# the minimum distance estimates
+
+omega <- ginv(vcov[2:25,2:25])
+xmd <- x2[1:24,-2]
+ymd <- theta1[2:25]
+beta <- ginv(t(xmd)%*%omega%*%xmd)%*%t(xmd)%*%omega%*%ymd
+resmd <- ymd - xmd%*%beta  
+semd <- sqrt(diag(ginv(t(xmd)%*%omega%*%xmd)))
+  
+  
